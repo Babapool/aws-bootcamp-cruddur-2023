@@ -40,3 +40,14 @@ It has 6 operational pillars:
 You can learn more about these 6 pillars from [here](https://aws.amazon.com/architecture/well-architected/?wa-lens-whitepapers.sort-by=item.additionalFields.sortDate&wa-lens-whitepapers.sort-order=desc&wa-guidance-whitepapers.sort-by=item.additionalFields.sortDate&wa-guidance-whitepapers.sort-order=desc).
 
 ## Required Homework
+
+### Conceptual Diagram of Cruddur
+![Conceptual Diagram of Cruddur]()
+
+You can view this diagram in Lucid Chart from [here](https://lucid.app/lucidchart/4224de5d-2627-429f-8534-e0a8419c20ec/edit?viewport_loc=-183%2C98%2C2075%2C947%2C0_0&invitationId=inv_be31f293-d9f6-462b-9313-3e15324159f8).
+
+### Logical Diagram of Cruddur
+![Logical Diagram of Cruddur](assets/Logical-Diagram-Cruddur.svg)
+
+You can view this diagram in Lucid Chart from [here](https://lucid.app/lucidchart/48948c93-30b3-408e-8e0b-1795cba9a759/edit?viewport_loc=-903%2C929%2C2379%2C1085%2C0_0&invitationId=inv_04005c7d-b935-406d-b11d-9c11a511a4e6).
+
