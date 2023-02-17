@@ -42,7 +42,7 @@ You can learn more about these 6 pillars from [here](https://aws.amazon.com/arch
 ## Required Homework
 
 ### Conceptual Diagram of Cruddur
-![Conceptual Diagram of Cruddur]()
+![Conceptual Diagram of Cruddur](assets/Crudder-Conceptual-Diagram.svg)
 
 You can view this diagram in Lucid Chart from [here](https://lucid.app/lucidchart/4224de5d-2627-429f-8534-e0a8419c20ec/edit?viewport_loc=-183%2C98%2C2075%2C947%2C0_0&invitationId=inv_be31f293-d9f6-462b-9313-3e15324159f8).
 
