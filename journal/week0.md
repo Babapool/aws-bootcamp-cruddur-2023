@@ -79,3 +79,115 @@ The AWS account we create is the _Root Account_. It is advisble to use your Root
  ![Step 2](assets/Credentials-Step2.png)
  1. Select `Create access key` to generate the credentials.
  1. Retrieve/download your credentials.
+ 
+### Using CloudShell
+
+The AWS CloudShell is allows users to access the AWS via the CLI in the AWS Management Console itself. This service is not avaialable in the all the AWS Regions.
+
+- Select the `Terminal` like icon on the top of the page to launch the AWS CloudShell.
+![Step 1](assets/CloudShell1.png)
+![Step 2](assets/CloudShell2.png)
+- Use the following command to check of CloudShell is working properly:
+```sh
+aws s3 ls
+```
+The command shows the S3 buckets created.
+![CloudShell commands](assets/CloudShell4.png)
+
+### Installing AWS CLI
+
+The AWS CLI provides a CLI interface to use AWS. It allows us to access AWS progamatically through our command line interface. For the CLI to know which account it is going to use we have to provide the `Access key` and `Secret access key` while configuring it.
+
+- To manually install AWS CLI in a linux environment, use the following steps:
+  ```shell
+  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  unzip awscliv2.zip
+  sudo ./aws/install
+  ```
+  To configure the AWS CLI you can youse either of the following methods: 
+ ```shell
+ aws configure
+ ``` 
+ Then add/set the Access Key, Secret Access Key and the Region variables.
+
+                                ## OR
+  Use the following commands to set the following variables to the terminal
+  
+  ```shell
+  export AWS_ACCESS_KEY_ID=""
+  export AWS_SECRET_ACCESS_KEY=""
+  export AWS_DEFAULT_REGION="us-east-1"
+ ```
+ ![Installing AWS CLI](assets/Install-AWS-CLI.png)
+- To ensure the AWS CLI installs automatically even after we launch a new Gitpod environment, do the following changes in the `gitpod.yml` file to include the following task:
+
+ ```shell
+tasks:
+  - name: aws-cli
+    env:
+      AWS_CLI_AUTO_PROMPT: on-partial
+    init: |
+      cd /workspace
+      curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+      unzip awscliv2.zip
+      sudo ./aws/install
+      cd $THEIA_WORKSPACE_ROOT
+ ```
+  To ensure that Gitpod remebers the AWS CLI variables after launching a new environment, do the following:
+  ```shell
+  gp env AWS_ACCESS_KEY_ID=""
+  gp env AWS_SECRET_ACCESS_KEY=""
+  gp env AWS_DEFAULT_REGION=us-east-1
+  ```
+  
+### Create Billing Alarm
+
+#### Enable Billing
+
+In order to recieve alerts for billing we need to turn on `Billing Alerts`.
+- Go the [Billing Dashboard Page](https://us-east-1.console.aws.amazon.com/billing/home?region=us-east-1#/) under your _Root Account_.
+- Under the `Preferences` section -> `Billing preferences`
+- Check the `Recieve Billing Alerts` checkbox.
+- Click on `Saves Preference` 
+![Billing Alerts](assets/billing-alerts.png)
+#### Create SNS Topic
+
+An SNS (Simple Notification Service) topic is to be created first before we can recieve billing alerts.
+Our alarm will be delivered to us by the SNS service in case we cross the required threshold.
+To create the SNS topic run the following command:
+```shell
+aws sns create-topic --name my-billing-alarm
+```
+After we run this command we will get a TopicARN. To create and SNS subscription for our alarm, run the following command:
+```shell
+aws sns subscribe \
+    --topic-arn <inset your TopicARN here> \
+    --protocol email \
+    --notification-endpoint my-example-email@example.com
+```
+Our subscription will be created and we will need to confirm it from the email ID provided.
+
+#### Creating the alarm
+The mertics required to create the alarm are specfied in this [JSON](/aws/config/aws_alarm.json).
+![SNS](assets/SNS-subs.png)
+Run the following command:
+```shell
+aws cloudwatch put-metric-alarm --cli-input-json file://aws/config/alarm_config.json
+```
+![CLI Coomand](assets/billing-alarm-cmd.png)
+![Output](assets/billing-alarm.png)
+
+### Creating a Budget
+
+For creating a budget we need to specify our AWS account ID.
+We need two JSON files while creating a budget:
+- [budget](/aws/config/budget.json): The budget object that you want to create. It contains strcture of the mertics we require.
+- [notifications-with-subscribers](/config/budget-notifications.json): A notification that you want to associate with a budget. It includes the threshold after which we want to send the notification to the user. It also specifies frequency to send the send the alerts and to which user.
+Run the following command:
+```shell
+aws budgets create-budget \
+    --account-id <AccountID> \
+    --budget file://aws/json/budget.json \
+    --notifications-with-subscribers file://aws/config/budget-notifications.json
+```
+![Budget output](assets/budget.png)
