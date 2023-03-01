@@ -58,6 +58,11 @@ We can also ensure to run our container temporarily, i.e. after we exit the cont
 ```
 docker run -rm -p 4567:4567 -it -e FRONTEND_URL='*' -e BACKEND_URL='*' backend-flask
 ```
+![step1](assets/backend-docker-1.png)
+![step2](assets/backend-docker-2.png)
+![step3](assets/backend-docker-3.png)
+![step4](assets/backend-docker-4.png)
+
 #### 2. Containerizing the Front end
 
 To containerize the front end/react module of our application, we need to create a Dockerfile and then build it to create a docker image.
@@ -89,6 +94,12 @@ To run this container. run:
  ```
  docker run -p 3000:3000 -d frontend-react-js
  ```
+ 
+ ![step1](assets/frontend-docker-1.png)
+ ![step2](assets/frontend-docker-2.png)
+ ![step3](assets/frontend-docker-3.png)
+ ![step4](assets/frontend-docker-4.png)
+ ![step5](assets/frontend-docker-5.png)
  
 #### 3. Create multiple containers simulataneously using Docker compose
 
@@ -166,6 +177,7 @@ First we are going to add the notification endpoint by adding the API notation u
  We now will make the neccessary changes in our backend code base. We first need to create `notification_activities` service and then create an API route for this API in the `app.py` file. You can view the changes done in the code base [here](https://github.com/Babapool/aws-bootcamp-cruddur-2023/commit/d2e2380f8758f82895f8cef8276ff25dbc302a2e).
  
  Refresh the application and ahead to the `/api/activities/notifications` URL can you will see results we had added in the `notifications_activities.py` file.
+   ![backend-notification](assets/notification-endpoint-backend.png)
  
  ### Write Notification Endpoint for React Frontend
   
@@ -185,4 +197,62 @@ First we are going to add the notification endpoint by adding the API notation u
   ```
   
   This means whenever in the frontend we will provide the URL `/notifications` we should be redirected towards the `NotificationFeedPage` element.
+  ![frontend-notification](assets/notification-endpoint-frontend.png)
  
+### Run DynamoDB Local Container and ensure it works
+
+To spin up a DynamoDB Local container add the `dynamodb-local` service into our already created `docker-compose.yml`:
+```YAML
+services:
+  dynamodb-local:
+    # https://stackoverflow.com/questions/67533058/persist-local-dynamodb-data-in-volumes-lack-permission-unable-to-open-databa
+    # We needed to add user:root to get this working.
+    user: root
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    image: "amazon/dynamodb-local:latest"
+    container_name: dynamodb-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./docker/dynamodb:/home/dynamodblocal/data"
+    working_dir: /home/dynamodblocal
+```
+
+Test your connection to the DynamoDB Local container using `aws dynamodb list-tables --endpoint-url http://localhost:8000`. This will return empty information as now tables are created.
+![dynamodb](assets/dynamodb.png)
+### ### Run PostgreSQL Container and ensure it works
+
+To spin up a DynamoDB Local container add the `dynamodb-local` service into our already created `docker-compose.yml` file:
+```YAML
+services:
+  db:
+    image: postgres:13-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+    ports:
+      - '5432:5432'
+    volumes: 
+      - db:/var/lib/postgresql/data
+volumes:
+  db:
+    driver: local
+ ```
+ 
+ We want to download and instal the PostgreSQL into Gitpod. To ensure that everytime when we launch a new environment, the driver is installed and downloaded do the following changes in the `gitpod.yml`:
+ ```YAML
+ - name: postgres
+    init: |
+      curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc|sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+      echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" |sudo tee  /etc/apt/sources.list.d/pgdg.list
+      sudo apt update
+      sudo apt install -y postgresql-client-13 libpq-dev
+```
+Install the driver can to check whether PostgresSQL is working connect to PostgreSQL using:
+```psql -Upostgres --host localhost```
+
+Enter the password and we will connected to the PostgreSQL.
+![postgresql](assets/postgresql.png)
+
+## Homework Challenges
