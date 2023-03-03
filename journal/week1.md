@@ -256,3 +256,85 @@ Enter the password and we will connected to the PostgreSQL.
 ![postgresql](assets/postgresql.png)
 
 ## Homework Challenges
+
+### Push and tag an image to DockerHub
+
+To push an image to DockerHub,
+
+1. First we need to login into our Docker Hub account:
+```
+docker login
+```
+1. Then we need to tag our Image. While tagging our image we need to specify the Image URL. 
+Here, Image URL: `userName/imageName:version`. 
+The general syntax is:
+``` docker tag imageNameOnHost imageURL``` 
+`imageNameOnHost` -> means that you need to use the image name that is preset locally on the your system. User `docker images` command to find out.
+
+To tag our `backend-flask` we will run:
+```
+docker tag backend_flask babapool/crudder_backend_flask:1.0.0
+```
+1. To push your image, run the following command:
+``` 
+docker push babapool/crudder_backend_flask:1.0.0
+```
+![push](assets/docker-push-1.png)
+
+The general syntax is:
+```
+docker push imageURL
+```
+
+1. Visit to your repository to see your newly pushed image
+![output](assets/docker-push-2.png)
+
+### Launch an EC2 instance that has docker installed, and pull a container to demonstrate you can run your own docker processes. 
+
+We are are going to pull our `crudder_backend_flas:1.0.0` (the image we recently pushed) from Docker Hub in our EC2 instance.
+
+1. We are going to launch a free tier EC2 instance having the following configuration:
+- Amazon Linux 2 AMI (AMI ID: ami-006dcf) {Free tier eligible}
+- t2.micro instance type {Free tier eligible}
+- Key Pair 
+- Since our backend application requires Port `4567` to be open for traffic, we are going to create and EC2 Security Group that will allow traffic through this port
+![SG](assets/ec2-sg.png)
+
+1. We are going to SSH into our EC2 instance by using the follwing command:
+```
+ssh -i keyPairName.pem ec2-user@public-ip
+```
+1. After we SSH into our EC2 instance we are going to install docker by running
+```
+sudo yum install docker -ce
+```
+Verify this by running the command ``` docker``` and get the following output:
+![output](assets/ec2-docker-1.png)
+
+1. Start the docker service by runnning:
+``` sudo systemctl start docker
+```
+And provide the required permissions by
+```
+sudo chmod 666 /var/run/docker.sock
+```
+1. Log into your Docker account by using the following command:
+```
+docker login
+```
+1. Pull your image using the command:
+```
+docker pull babapool/crudder_backend_flask:1.0.0
+```
+![pull](assets/ec2-docker-2.png)
+
+1. Run the container by using the command:
+```
+docker run -d -p 4567:4567 -it -e FRONTEND_URL='*' -e BACKEND_URL='*' babapool/crudder_backend_flask:1.0.0
+```
+
+1. You can verify whether the container is running by getting the website conten through the `curl` command:
+```
+curl localhost:4567/api/activities/notifications
+```
+![output](assets/ec2-docker-3.png)
