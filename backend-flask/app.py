@@ -14,7 +14,7 @@ from services.create_message import *
 from services.show_activity import *
 from services.notification_activities import *
 
-#Honeycomb
+#----Honeycomb------
 from opentelemetry import trace
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
@@ -30,9 +30,9 @@ from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
 
 xray_url = os.getenv("AWS_XRAY_URL")
 xray_recorder.configure(service='backendflask', dynamic_naming=xray_url)
-XRayMiddleware(app, xray_recorder)
 
-#Honeycomb
+
+#--Honeycomb--
 # Initialize tracing and an exporter that can send data to Honeycomb
 provider = TracerProvider()
 processor = BatchSpanProcessor(OTLPSpanExporter())
@@ -47,7 +47,10 @@ tracer = trace.get_tracer(__name__)
 
 app = Flask(__name__)
 
-#Honeycomb
+#--XRAY--
+XRayMiddleware(app, xray_recorder)
+
+#--Honeycomb--
 # Initialize automatic instrumentation with Flask
 FlaskInstrumentor().instrument_app(app)
 RequestsInstrumentor().instrument()
