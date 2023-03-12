@@ -136,3 +136,159 @@ We will also try to see the heatmap of the duration, to see the latency as perci
 
 You can see the query output in the following image:
 
+## AWS X-Ray
+AWS X-Ray is a service that collects data about requests that your application serves, and provides tools that you can use to view, filter, and gain insights into that data to identify issues and opportunities for optimization. For any traced request to your application, you can see detailed information not only about the request and response, but also about calls that your application makes to downstream AWS resources, microservices, databases, and web APIs.
+
+AWS X-Ray receives traces from your application, in addition to AWS services your application uses that are already integrated with X-Ray. Instrumenting your application involves sending trace data for incoming and outbound requests and other events within your application, along with metadata about each request.AWS services that are integrated with X-Ray can add tracing headers to incoming requests, send trace data to X-Ray, or run the X-Ray daemon.
+
+Instead of sending trace data directly to X-Ray, each client SDK sends JSON segment documents to a daemon process listening for UDP traffic. The X-Ray daemon buffers segments in a queue and uploads them to X-Ray in batches. 
+
+![XRAY](https://docs.aws.amazon.com/images/xray/latest/devguide/images/architecture-dataflow.png)
+
+X-Ray uses trace data from the AWS resources that power your cloud applications to generate a detailed service map. Use the service map to identify bottlenecks, latency spikes, and other issues to solve to improve the performance of your applications.
+
+1. Installing the requirements
+Add the following requirements in the `requirements.txt` file to install `aws-xray-sdk`:
+```
+aws-xray-sdk
+```
+Run the `pip install -r requirements.txt` to install this requirements.
+
+1. Setting up X-Ray Resources
+
+- To setup the sampling rules create a JSON file in `aws/json` directory:
+```JSON
+{
+    "SamplingRule": {
+        "RuleName": "backend-flask",
+        "ResourceARN": "*",
+        "Priority": 9000,
+        "FixedRate": 0.1,
+        "ReservoirSize": 5,
+        "ServiceName": "Cruddur",
+        "ServiceType": "*",
+        "Host": "*",
+        "HTTPMethod": "*",
+        "URLPath": "*",
+        "Version": 1
+    }
+  }
+```  
+- Creating X-Ray groups
+
+To create X-Ray group, run the following command:
+```
+FLASK_ADDRESS="https://4567-${GITPOD_WORKSPACE_ID}.${GITPOD_WORKSPACE_CLUSTER_HOST}"
+aws xray create-group \
+   --group-name "Cruddur" \
+   --filter-expression "service(\"backend-flask\")"
+```
+
+- To create the sampling group, run the command:
+```
+aws xray create-sampling-rule --cli-input-json file://aws/json/xray.json
+```
+1. X-Ray Daemon
+The AWS X-Ray daemon is a software application that listens for traffic on UDP port 2000, gathers raw segment data, and relays it to the AWS X-Ray API. The daemon works in conjunction with the AWS X-Ray SDKs and must be running so that data sent by the SDKs can reach the X-Ray service.
+
+We want to install and run the daemon as a container as we want to run the daemon inside the container in the cluster to get the reporting. In the `docker-compose.yml` add the following `xray-daemon` as new service:
+```YAML
+  xray-daemon:
+    image: "amazon/aws-xray-daemon"
+    environment:
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+      AWS_REGION: "us-east-1"
+    command:
+      - "xray -o -b xray-daemon:2000"
+    ports:
+      - 2000:2000/udp
+```
+
+1. Writing the X-Ray code
+- Import and intialize the X-Ray recorder and the middleware bu using these lines of code:
+```py
+# ---X-Ray---
+from aws_xray_sdk.core import xray_recorder
+from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
+
+xray_url = os.getenv("AWS_XRAY_URL")
+#xray_recorder.configure(service='backend-flask', dynamic_naming=xray_url)
+xray_recorder.configure(service='backend-flask') # To ensure all traces can be grouped under the Cruudr group created
+
+......
+......
+
+app = Flask(__name__)
+
+#---X-Ray----
+XRayMiddleware(app, xray_recorder)
+```
+1. Verifying the reports
+
+Run the `docker compose up` command to see the Traces in the AWS Console in the AWS X-Ray service.
+
+2. Creating custom segments and subsegments for AWS X-Ray
+
+We want to create a custom segement and subsegmenst to see the trace reports according to our needs. For this we are going to create a custom subsegement in the `user_activities.py` file.
+
+- The first step would be to instrument the endpoint. We can instrument the the endpoint by adding `@xray_recorder.capture('user_activities')`  decorator on our Flask function, in our case would be `def data_handle(handle)` handle function. Add the following lines:
+
+```py
+@app.route("/api/activities/@<string:handle>", methods=['GET'])
+@xray_recorder.capture('user_activities_home')
+def data_handle(handle):
+```
+The `'user_activities_home` is the name of our endpoint. The `capture` method is used to create a custom X-Ray subsgement that is associated with our endpoint function. The parameter passed the name of the endpoint which we going to view while seeing the Traces in the console.
+
+- To create our custom subsegement, we need to do the following changes in the `user_activities.py` file/ The modified content of the file is as follows:
+```py
+from datetime import datetime, timedelta, timezone
+from aws_xray_sdk.core import xray_recorder
+class UserActivities:
+  def run(user_handle):
+    try:
+      model = {
+        'errors': None,
+        'data': None
+      }
+
+      now = datetime.now(timezone.utc).astimezone()
+      
+      if user_handle == None or len(user_handle) < 1:
+        model['errors'] = ['blank_user_handle']
+      else:
+        now = datetime.now()
+        results = [{
+          'uuid': '248959df-3079-4947-b847-9e0892d1bab4',
+          'handle':  'Andrew Brown',
+          'message': 'Cloud is fun!',
+          'created_at': (now - timedelta(days=1)).isoformat(),
+          'expires_at': (now + timedelta(days=31)).isoformat()
+        },
+        {
+          'uuid': '248959df-3079-4947-b847-9e0892c1bab4',
+          'handle':  'Kick Buttowksi',
+          'message': 'Cloud bootcamp is fun. It makes learning easy!!!',
+          'created_at': (now - timedelta(days=1)).isoformat(),
+          'expires_at': (now + timedelta(days=31)).isoformat()
+        }
+        ]
+        model['data'] = results
+    
+    #opening the subsegment
+      subsegment = xray_recorder.begin_subsegment('mock-data')
+      # ---X-Ray ---
+      dict = {
+        "now": now.isoformat(),
+        "results-size": len(model['data'])
+      }
+      subsegment.put_metadata('key', dict, 'namespace') #putting data in subsegment
+      xray_recorder.end_subsegment()
+    finally:  
+    #   Closing  the segment
+      xray_recorder.end_subsegment()
+    return model
+```
+- Run the `docker compose up` command and verify the Traces in the AWS Console.
+
