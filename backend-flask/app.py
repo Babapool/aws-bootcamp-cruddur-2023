@@ -25,16 +25,16 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExpor
 
 
 # ----AWS X-Ray----
-from aws_xray_sdk.core import xray_recorder
-from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
+# from aws_xray_sdk.core import xray_recorder
+# from aws_xray_sdk.ext.flask.middleware import XRayMiddleware
 
-xray_url = os.getenv("AWS_XRAY_URL")
-xray_recorder.configure(service='backendflask', dynamic_naming=xray_url)
+# xray_url = os.getenv("AWS_XRAY_URL")
+# xray_recorder.configure(service='backendflask', dynamic_naming=xray_url)
 
 #--CloudWatch Logs---
-import watchtower
-import logging
-from time import strftime
+# import watchtower
+# import logging
+# from time import strftime
 
 # Configuring Logger to Use CloudWatch
 # LOGGER = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ tracer = trace.get_tracer(__name__)
 app = Flask(__name__)
 
 #--XRAY--
-XRayMiddleware(app, xray_recorder)
+#XRayMiddleware(app, xray_recorder)
 
 #--Honeycomb--
 # Initialize automatic instrumentation with Flask
@@ -158,7 +158,7 @@ def data_notifications():
   return data, 200
 
 @app.route("/api/activities/@<string:handle>", methods=['GET'])
-@xray_recorder.capture('user_activities_home')
+#@xray_recorder.capture('user_activities_home')
 def data_handle(handle):
   model = UserActivities.run(handle)
   if model['errors'] is not None:
