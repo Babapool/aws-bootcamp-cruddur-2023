@@ -292,3 +292,66 @@ class UserActivities:
 ```
 - Run the `docker compose up` command and verify the Traces in the AWS Console.
 
+### CloudWatch Logs
+
+- We need to add the `watchtower` dependency into our `requirements.txt` file. Add the following:
+```
+watchtower
+```
+Then run ```pip install -r requirements.txt```
+
+- Import watchtower. In our `app.py` add the following lines of code to import watchtower:
+```py
+import watchtower
+import logging
+from time import strftime
+```
+
+- Before we can use CloudWatch, we need to configure Logger. To configure logger, add the following lines in `app.py`:
+```py
+# Configuring Logger to Use CloudWatch
+LOGGER = logging.getLogger(__name__)
+LOGGER.setLevel(logging.DEBUG)
+console_handler = logging.StreamHandler()
+cw_handler = watchtower.CloudWatchLogHandler(log_group='cruddur')
+LOGGER.addHandler(console_handler)
+LOGGER.addHandler(cw_handler)
+LOGGER.info("Test Log")
+```
+`cw_handler = watchtower.CloudWatchLogHandler(log_group='cruddur')` will create a Log group called `cruddur` where all our logs will be stored.
+
+- If we want to do some error logging, we can add the following function to our `app.py` file:
+```py
+@app.after_request
+def after_request(response):
+    timestamp = strftime('[%Y-%b-%d %H:%M]')
+    LOGGER.error('%s %s %s %s %s %s', timestamp, request.remote_addr, request.method, request.scheme, request.full_path, response.status)
+    return response
+```
+- Add the following set of lines to make sure that we able to use the LOGGER for our endpoint:
+```
+@app.route("/api/activities/home", methods=['GET'])
+def data_home():
+  data = HomeActivities.run(Logger=LOGGER)
+  return data, 200
+```
+
+- Set the following environment variables for the `backend-flask` service in the `docker-compose.yml` file. Add the following environment variables:
+```YAML
+      ....
+      AWS_DEFAULT_REGION: "${AWS_DEFAULT_REGION}"
+      AWS_ACCESS_KEY_ID: "${AWS_ACCESS_KEY_ID}"
+      AWS_SECRET_ACCESS_KEY: "${AWS_SECRET_ACCESS_KEY}"
+```      
+1.Custom Logging in CloudWatch
+- We want to do some custom logging for our `activities_home.py` page. To get some info about the Logger we can add:
+```py
+...
+class HomeActivities:
+  def run(logger):
+
+    logger.info("HomeActivities")
+....
+```
+
+- Start the application using `docker compose up` and go to our enpoint to verify
