@@ -10,7 +10,7 @@ AWS Cognito has 2 main parts: User pool and Indentity pool.
 
 To create a User pool, go the the Cognito service page on the AWS Console. Select `User Pools` option and choose `Create user pool`.
 
-
+![User pool](assets/cognito-userpool.png)
 
 ### Implement Custom Signin Page
 
@@ -113,6 +113,7 @@ const onsubmit = async (event) => {
          });
          
 ```
+![output1](assets/cognito-op-1.png)
 
 - Let us create a random user to test whether or session is working or not. Go to the `User` section in our User pool and choose `Create User`. After you create the user, confrim the user. To confirm the user run the following command:
 ```
@@ -121,6 +122,8 @@ aws cognito-idp admin-set-user-password --user-pool-id <your user-pool-id> --use
 
 Now sign in using these credentials to verify whether we are able to login or not.
 
+![output2](assets/cognito-op2.png)
+![output3](assets/cognito-op3.png)
 
 ### Implement Custom Signup Page
 
@@ -208,6 +211,7 @@ const onsubmit_send_code = async (event) => {
   return false
 }
 ```
+![Pages](assets/Cruddur.gif)
 
 ### Verifying JWT tokens on server side
 
@@ -333,6 +337,8 @@ const signOut = async () => {
   }
 ```  
 
+![JWT GIF](assets/Cruddur-JWT.gif)
+
 ## Homework Challenges
 
 ### Decouple the JWT verify from the application code by writing a Flask Middleware
@@ -404,4 +410,4 @@ def data_home():
 - We then modififed the `data_home()` function to use the stored user ID from the request context if available, allowing us to decouple the verification of the JWT token from the application code.
 
 
-
+![Middleware GIF](assets/Cruudur-JWT-Middleware.gif)
