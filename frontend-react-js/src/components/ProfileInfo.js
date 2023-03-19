@@ -16,6 +16,7 @@ export default function ProfileInfo(props) {
     try {
         await Auth.signOut({ global: true });
         window.location.href = "/"
+        localStorage.removeItem("access_token") //Remove the token when the user logs out
     } catch (error) {
         console.log('error signing out: ', error);
     }
