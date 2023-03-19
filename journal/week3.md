@@ -332,3 +332,76 @@ const signOut = async () => {
     }
   }
 ```  
+
+## Homework Challenges
+
+### Decouple the JWT verify from the application code by writing a Flask Middleware
+
+- We will create a Middleware module in the `lib` directory. You can view the contents of [jwt_token_middleware.py](../backend-flask/lib/jwt_token_middleware.py) here.
+```py
+import time
+from flask import request
+from lib.cognito_jwt_token import CognitoJwtToken, TokenVerifyError
+
+class TokenVerificationMiddleware:
+    def __init__(self, app, user_pool_id, user_pool_client_id, region):
+        self.app = app
+        self.jwt_token = CognitoJwtToken(user_pool_id, user_pool_client_id, region)
+
+    def __call__(self, environ, start_response):
+        request_headers = dict(environ)
+        access_token = extract_access_token(request_headers)
+        try:
+            self.jwt_token.verify(access_token)
+        except TokenVerifyError as e:
+            response = {'message': 'Token verification failed', 'error': str(e)}
+            start_response('401 Unauthorized', [('Content-Type', 'application/json')])
+            return [json.dumps(response).encode('utf-8')]
+        environ['user'] = self.jwt_token.claims
+        return self.app(environ, start_response)
+```
+
+- We develop a middleware that intercepts incoming requests and performs the verification before the request reaches the application. The application code then does not need to worry about token validation and can assume that the token has already been verified.
+
+- Our middleware intercepts incoming requests and extracts the JWT token from the request headers using the `extract_access_token` function from the [jwt_token_middleware.py](../backend-flask/lib/jwt_token_middleware.py) code.
+- We use the `CognitoJwtToken` class to verify the token, and if the verification fails, it returns a 401 Unauthorized response with a JSON error message.
+- If the token is successfully verified, the middleware adds the decoded claims to the request environment under the user key, and passes the request on to the application.
+
+
+- We need to do the following changes in our `app.py` file as well:
+```py
+......
+# Define middleware function to check JWT token
+@app.before_request
+def verify_token():
+    if request.path.startswith("/api/"):
+        access_token = extract_access_token(request.headers)
+        try:
+            claims = cognito_jwt_token.verify(access_token)
+            # Authenticated request
+            #app.logger.debug("Authenticated")
+            #app.logger.debug(claims)
+            #app.logger.debug(claims['username'])
+            # Store the user ID in the request context for later use
+            request.cognito_user_id = claims['username']
+        except TokenVerifyError as e:
+            # Unauthenticated request
+            #app.logger.debug(e)
+            #app.logger.debug("Unauthenticated")
+            pass
+
+# Define route functions that use the middleware
+@app.route("/api/activities/home", methods=['GET'])
+def data_home():
+    # Use the stored user ID from the request context if available
+    if hasattr(request, 'cognito_user_id'):
+        data = HomeActivities.run(cognito_user_id=request.cognito_user_id)
+    else:
+        data = HomeActivities.run()
+    return data, 200
+````
+- The middleware function `verify_token()` is executed before every request that starts with `"/api/"`. This function then extracts the JWT access token from the request headers, verifies it using the `CognitoJwtToken `class, and stores the user ID in the request context if the token is valid.
+- We then modififed the `data_home()` function to use the stored user ID from the request context if available, allowing us to decouple the verification of the JWT token from the application code.
+
+
+
