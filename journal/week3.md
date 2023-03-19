@@ -233,7 +233,7 @@ Flask-AWSCognito
 ```
 Then run the `pip install -r requirements.txt` command
 
-- We want to now verify the JWT token recieved through Cognito. For this we are going to create a new `lib` directory. Within this library we will code a module that will be used in verifying the token. Create a `cognito_jwt_token.py`. You can view the contents of [cognito_jwt_token.py](backend-flask/lib/cognito_jwt_token.py] here.
+- We want to now verify the JWT token recieved through Cognito. For this we are going to create a new `lib` directory. Within this library we will code a module that will be used in verifying the token. Create a `cognito_jwt_token.py`. You can view the contents of [cognito_jwt_token.py](../backend-flask/lib/cognito_jwt_token.py) here.
 
 - In the `app.py` we will add the following modifications to CORS intialization so that communication is not aborted due to a CORS errors:
 ```py
