@@ -208,3 +208,127 @@ const onsubmit_send_code = async (event) => {
   return false
 }
 ```
+
+### Verifying JWT tokens on server side
+
+We want to send the a JWT token to the backend server, verify it and render a provide a different Home page based on the outcome of the verification and authentication of the token.
+
+- While sending an API call from the frontend to the backend, we need to ensure that the JWT token is also sent so that our request can be verifed in the backend. 
+To add the JWT token as part of the request header when a API call is sent do the following changes in `pages/HomeFeedPage.js` file:
+```JS
+const loadData = async () => {
+    try {
+      const backend_url = `${process.env.REACT_APP_BACKEND_URL}/api/activities/home`
+      const res = await fetch(backend_url, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access_token")}` //Adds the token as part of the request header
+        },
+        method: "GET"
+      });
+```
+
+- To verify the the token received, we will add a external library as a requirement we need to install. In our `requirements.txt` add the following requirement:
+ ```
+Flask-AWSCognito
+```
+Then run the `pip install -r requirements.txt` command
+
+- We want to now verify the JWT token recieved through Cognito. For this we are going to create a new `lib` directory. Within this library we will code a module that will be used in verifying the token. Create a `cognito_jwt_token.py`. You can view the contents of [cognito_jwt_token.py](backend-flask/lib/cognito_jwt_token.py] here.
+
+- In the `app.py` we will add the following modifications to CORS intialization so that communication is not aborted due to a CORS errors:
+```py
+cors = CORS(
+  app, 
+  resources={r"/api/*": {"origins": origins}},
+  expose_headers="location,link",
+  allow_headers="content-type,if-modified-since",
+  headers=['Content-Type', 'Authorization'], 
+  expose_headers='Authorization',
+  methods="OPTIONS,GET,HEAD,POST"
+)
+```
+- In the `app.py` file, a object of type CognitoJwtToken is imported and initialized by adding the following in our code:
+```py
+import sys
+...
+
+from lib.cognito_jwt_token import CognitoJwtToken, extract_access_token, TokenVerifyError
+...
+
+cors = CORS(
+  app, 
+  resources={r"/api/*": {"origins": origins}},
+  headers=['Content-Type', 'Authorization'], 
+  expose_headers='Authorization',
+  methods="OPTIONS,GET,HEAD,POST"
+)
+...
+
+```
+
+- In the same file we want to modify the `data_home()` method as as well. Do the following changes:
+```py
+def data_home():
+  access_token = extract_access_token(request.headers)
+  try:
+    claims = cognito_jwt_token.verify(access_token)
+    # authenicatied request
+    app.logger.debug("authenicated")
+    app.logger.debug(claims)
+    app.logger.debug(claims['username'])
+    data = HomeActivities.run(cognito_user_id=claims['username'])
+  except TokenVerifyError as e:
+    # unauthenicatied request
+    app.logger.debug(e)
+    app.logger.debug("unauthenicated")
+    data = HomeActivities.run()
+  return data, 200
+```
+logger is used to see if a after the token is send is the user request authenticated or not.
+
+- In the `home_activities.py` file we will modify to add another user entry that can only be viewed if the user is authentication and logged in. Do the following changes:
+```py
+class HomeActivities:
+  def run(cognito_user_id=None): #adding user
+    .....
+
+      if cognito_user_id != None:
+        extra_crud = {
+          'uuid': '248959df-3079-4947-b847-9e0892d1bab4',
+          'handle':  'Kick Buttowksi',
+          'message': 'Cloud bootcamp here I come!',
+          'created_at': (now - timedelta(hours=1)).isoformat(),
+          'expires_at': (now + timedelta(hours=12)).isoformat(),
+          'likes': 1042,
+          'replies': []
+        }
+        results.insert(0,extra_crud)
+        
+     span.set_attribute("app.result_length", len(results))
+     return results
+```
+
+- Add the following environment variables to the `backend-flask` service in our `docker-compose.yml` file:
+```YAML
+services:
+  backend-flask:
+    environment:
+      ....
+      AWS_COGNITO_USER_POOL_ID: "<Add your user pool ID>"
+      AWS_COGNITO_USER_POOL_CLIENT_ID: "<Add your client ID>"
+      ....
+```
+
+- After the user signs out we want to remove the token which is stored in our local storage. To do this we will make the following modification to 
+signOut method in `components/ProfileInfo.js` file:
+```JS
+const signOut = async () => {
+    try {
+        await Auth.signOut({ global: true });
+        window.location.href = "/"
+        localStorage.removeItem("access_token") //Remove the token when the user logs out
+    } catch (error) {
+        console.log('error signing out: ', error);
+    }
+  }
+```  
