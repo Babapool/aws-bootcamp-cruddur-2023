@@ -2,7 +2,7 @@ from flask import Flask
 from flask import request
 from flask_cors import CORS, cross_origin
 import os
-
+import sys
 from services.home_activities import *
 from services.user_activities import *
 from services.create_activity import *
@@ -13,6 +13,8 @@ from services.messages import *
 from services.create_message import *
 from services.show_activity import *
 from services.notification_activities import *
+
+from lib.cognito_jwt_token import CognitoJwtToken, extract_access_token, TokenVerifyError
 
 #----Honeycomb------
 from opentelemetry import trace
@@ -64,6 +66,12 @@ tracer = trace.get_tracer(__name__)
 
 app = Flask(__name__)
 
+cognito_jwt_token = CognitoJwtToken(
+  user_pool_id=os.getenv("AWS_COGNITO_USER_POOL_ID"), 
+  user_pool_client_id=os.getenv("AWS_COGNITO_USER_POOL_CLIENT_ID"),
+  region=os.getenv("AWS_DEFAULT_REGION")
+)
+
 #--XRAY--
 #XRayMiddleware(app, xray_recorder)
 
@@ -75,11 +83,12 @@ RequestsInstrumentor().instrument()
 frontend = os.getenv('FRONTEND_URL')
 backend = os.getenv('BACKEND_URL')
 origins = [frontend, backend]
+
 cors = CORS(
   app, 
   resources={r"/api/*": {"origins": origins}},
-  expose_headers="location,link",
-  allow_headers="content-type,if-modified-since",
+  headers=['Content-Type', 'Authorization'], 
+  expose_headers='Authorization',
   methods="OPTIONS,GET,HEAD,POST"
 )
 
@@ -147,10 +156,47 @@ def data_create_message():
     return model['data'], 200
   return
 
+# Define middleware function to check JWT token
+@app.before_request
+def verify_token():
+    if request.path.startswith("/api/"):
+        access_token = extract_access_token(request.headers)
+        try:
+            claims = cognito_jwt_token.verify(access_token)
+            # Authenticated request
+            app.logger.debug("Authenticated")
+            app.logger.debug(claims)
+            app.logger.debug(claims['username'])
+            # Store the user ID in the request context for later use
+            request.cognito_user_id = claims['username']
+        except TokenVerifyError as e:
+            # Unauthenticated request
+            app.logger.debug(e)
+            app.logger.debug("Unauthenticated")
+            pass
+
 @app.route("/api/activities/home", methods=['GET'])
 def data_home():
-  data = HomeActivities.run()#(Logger=LOGGER)
-  return data, 200
+   # Use the stored user ID from the request context if available
+    if hasattr(request, 'cognito_user_id'):
+        data = HomeActivities.run(cognito_user_id=request.cognito_user_id) #(Logger=LOGGER)
+    else:
+        data = HomeActivities.run()
+    return data, 200
+  # access_token = extract_access_token(request.headers)
+  # try:
+  #   claims = cognito_jwt_token.verify(access_token)
+  #   # authenicatied request
+  #   #app.logger.debug("authenicated")
+  #   #app.logger.debug(claims)
+  #   #app.logger.debug(claims['username'])
+  #   data = HomeActivities.run(cognito_user_id=claims['username'])
+  # except TokenVerifyError as e:
+  #   # unauthenicatied request
+  #   #app.logger.debug(e)
+  #   #app.logger.debug("unauthenicated")
+  #   data = HomeActivities.run()#(Logger=LOGGER)
+  # return data, 200
 
 @app.route("/api/activities/notifications", methods=['GET'])
 def data_notifications():
