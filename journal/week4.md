@@ -212,3 +212,204 @@ VALUES
   )
 
 ```
+
+g. Script to see how many connection we are using
+- Create a file `db-sessions` in the `backend-flask/bin` directory and add the following:
+```bash
+#! /usr/bin/bash
+CYAN='\033[1;36m'
+NO_COLOR='\033[0m'
+LABEL="db-sessions"
+printf "${CYAN}== ${LABEL}${NO_COLOR}\n"
+
+if [ "$1" = "prod" ]; then
+  echo "Running in production mode"
+  URL=$PROD_CONNECTION_URL
+else
+  URL=$CONNECTION_URL
+fi
+
+NO_DB_URL=$(sed 's/\/cruddur//g' <<<"$URL")
+psql $NO_DB_URL -c "select pid as process_id, \
+       usename as user,  \
+       datname as db, \
+       client_addr, \
+       application_name as app,\
+       state \
+from pg_stat_activity;"
+```
+
+- Change the persmission for this file by running the following command:
+```
+chmod u+x bin/db-sessions
+```
+
+h. Script to run the nunch of bash scripts created
+- Create a file `db-setyp` in the `backend-flask/bin` directory and add the following:
+```bash
+#! /usr/bin/bash
+-e # stop if it fails at any point
+
+CYAN='\033[1;36m'
+NO_COLOR='\033[0m'
+LABEL="db-setup"
+printf "${CYAN}==== ${LABEL}${NO_COLOR}\n"
+
+bin_path="$(realpath .)/bin"
+
+source "$bin_path/db-drop"
+source "$bin_path/db-create"
+source "$bin_path/db-schema-load"
+source "$bin_path/db-seed"
+```
+
+- Change the persmission for this file by running the following command:
+```
+chmod u+x bin/db-setup
+```
+
+### Install Postgres driver in backend application
+
+- Add the following dependencies to install the Postgres driver (`psycopg`) to our `requirements.txt` file:
+```
+psycopg[binary]
+psycopg[pool]
+```
+Install them by running the `pip -r install requirements.txt`
+
+- To create a connection pool for Postgres, create a file `db.py` in the `backend-flask/lib` directory and add the following:
+```py
+from psycopg_pool import ConnectionPool
+import os
+
+def query_wrap_object(template):
+  sql = f"""
+  (SELECT COALESCE(row_to_json(object_row),'{{}}'::json) FROM (
+  {template}
+  ) object_row);
+  """
+  return sql
+
+def query_wrap_array(template):
+  sql = f"""
+  (SELECT COALESCE(array_to_json(array_agg(row_to_json(array_row))),'[]'::json) FROM (
+  {template}
+  ) array_row);
+  """
+  return sql
+
+connection_url = os.getenv("CONNECTION_URL")
+pool = ConnectionPool(connection_url)
+  
+```
+
+- Add the `CONNECTION_URL` as a environment variable to the `backend-flask` service in our `docker-compose.yml` file:
+```YAML 
+backend-flask:
+    environment:
+      CONNECTION_URL: "postgresql://postgres:password@db:5433/cruddur"
+  .....
+```  
+
+- In our `home_activities.py` we wIll replace our mock endpoint with real API call by doing the following modificiations:
+```py
+from datetime import datetime, timedelta, timezone
+from opentelemetry import trace
+tracer = trace.get_tracer("home.activities")
+
+from lib.db import pool
+
+class HomeActivities:
+  #def run():#(Logger):
+  def run(cognito_user_id=None): #adding user
+
+    #Logger.info("HomeActivities")
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span("home-activities-mock-data"):
+      span = trace.get_current_span()
+      now = datetime.now(timezone.utc).astimezone()
+      span.set_attribute("app.now", now.isoformat())
+
+      sql = query_wrap_array("""
+      SELECT
+        activities.uuid,
+        users.display_name,
+        users.handle,
+        activities.message,
+        activities.replies_count,
+        activities.reposts_count,
+        activities.likes_count,
+        activities.reply_to_activity_uuid,
+        activities.expires_at,
+        activities.created_at
+      FROM public.activities
+      LEFT JOIN public.users ON users.uuid = activities.user_uuid
+      ORDER BY activities.created_at DESC
+      """)
+     print(sql)
+  
+      with pool.connection() as conn:
+        with conn.cursor() as cur:
+          cur.execute(sql)
+          # this will return a tuple
+          # the first field being the data
+          json = cur.fetchall()
+      return json[0]
+      return results
+
+```
+
+- Run the application by using the `docker compose up` command and we get the following output
+
+### Connect Gitpod to RDS instance
+
+- To connect to our RDS DB, run the following command:
+```psql $PROD_CONNECTION_URL```
+
+This will hang as we need to attach the Security Group having the Gitpod IP to allow connection to pass through.
+
+- To find the IP of our Gitpod instance use the following command:
+```
+GITPOD_IP=$(curl ifconfig.me)
+echo $GITPOD_IP
+export GITPOD_IP=$(curl ifconfig.me)
+```
+To export the IP address automatically, add the following to your `.gitpod.yml` file:
+```YAML
+    command: |
+      export GITPOD_IP=$(curl ifconfig.me)
+      source "$THEIA_WORKSPACE_ROOT/backend-flask/bin/rds-update-sg-rule"
+```      
+
+- Edit the inbound security group for Postgres so that we can whitelist the Gitpod IP
+
+- Now try to connect to the RDS instance
+
+- Since everytime we will launch a Gitpod environment, a new IP address will be assigned, so we will make a script to update the Security groups. To modify the Security group of EC2 instance do the following:
+
+a. Export the Security Group ID and the Security group rule ID
+```
+gp env DB_SG_ID="	sg-0fd3623daa99d5cc5"
+gp env DB_SG_RULE_ID="sgr-055ca3271721be10a"
+```
+
+b. Create a following file `rds-update-sg-rule` the `backend-flask/bin` directory:
+```bash
+#! /usr/bin/bash
+
+CYAN='\033[1;36m'
+NO_COLOR='\033[0m'
+LABEL="rds-update-sg-rule"
+printf "${CYAN}==== ${LABEL}${NO_COLOR}\n"
+
+aws ec2 modify-security-group-rules \
+    --group-id $DB_SG_ID \
+    --security-group-rules "SecurityGroupRuleId=$DB_SG_RULE_ID,SecurityGroupRule={Description=GITPOD,IpProtocol=tcp,FromPort=5432,ToPort=5432,CidrIpv4=$GITPOD_IP/32}"
+```
+
+c. Update the permisions by using:
+```
+chmod u+x ./bin/rds-update-sg-rule
+```
+
+### Loading Schema in AWS RDS Instance
