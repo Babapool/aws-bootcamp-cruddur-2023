@@ -412,4 +412,95 @@ c. Update the permisions by using:
 chmod u+x ./bin/rds-update-sg-rule
 ```
 
-### Loading Schema in AWS RDS Instance
+### Create AWS Cognito Lambda trigger to insert user data into database
+
+- First we need to create a handler function in AWS Lambda in the same VPC as our RDS as shown below
+
+- Add the following code to our lambda function:
+```py
+import json
+import os
+import psycopg2
+
+def lambda_handler(event, context):
+    user = event['request']['userAttributes']
+    user_display_name = user["name"]
+    user_email = user["email"]
+    user_handle = user["preferred_username"]
+    user_cognito_id = user["sub"]
+        
+    try:
+        sql = f"""
+        INSERT INTO public.users (
+            display_name,
+            email, 
+            handle, 
+            cognito_user_id
+            ) 
+        VALUES(
+           '{user_display_name}',
+           '{user_email}',
+           '{user_handle}',
+           '{user_cognito_id}'
+            )
+        """ 
+            
+        print(sql)
+        conn = psycopg2.connect(os.getenv("CONNECTION_URL"))
+        cur = conn.cursor()
+        cur.execute(sql)
+        conn.commit()
+        print('Commit Done')
+
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+        
+    finally:
+        if conn is not None:
+            cur.close()
+            conn.close()
+            print('Database connection closed.')
+
+    return event
+```
+Click the `Deploy` button to save the code
+
+- To add the following envars to our lambda code go to `Configuration`->`Environment Variables`->`Edit` and then add the following:
+
+
+- We need to add a Lambda layer for `psycopg2`. This will allow us to run Postgres through the Lambda function. Go the `Layers` option and add a layer by specifying this ARN : 
+`arn:aws:lambda:us-east-1:898466741470:layer:psycopg2-py38:2`
+
+- For adding the Cognito trigger for the Lambda function do the following:
+
+a. Head over to `Cognito`-> `User pools` -> `< Your User pool >` -> `User pool properties`- > `Add Lambda Trigger`. In there, add a lambda trigger with the following configuration:
+
+
+- Add the following role to our Lambda function to make network calls.
+a. Go to the `Configurations`->`Permissions`. 
+b. From there go the `IAM` service page choose our current role and go to `Add Permissions`. 
+c. Choose `Create Policy` and add the following JSON role:
+```JSON
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "ec2:CreateNetworkInterface",
+                "ec2:DeleteNetworkInterface",
+                "ec2:DescribeNetworkInterfaces",
+                "ec2:AttachNetworkInterface",
+                "ec2:DescribeInstances"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+Name it as `AWSLambdaVPCAccessExecutionRole`.
+d. Choose our newly created policy and attach it to our role.
+
+- Attach a VPC to our Lambda function by going to the `Configuration`->`VPC`->`Edit`.
+
+- Now run the application using the `docker compose up` command and then sign up a new user to view the results
