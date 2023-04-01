@@ -26,6 +26,7 @@ aws rds create-db-instance \
   --performance-insights-retention-period 7 \
   --no-deletion-protection
 ```
+![RDS Instance](assets/rds1.png)
 
 ### Creating Schema for Postgres
 
@@ -44,6 +45,7 @@ CREATE database cruddur;
 ```
 - Run `\l` to check that the DB is created
 
+![Postgre Tables](postgres2.png)
 
 - To create a scheme for our database, in our `backend-flask/db` directory, we are going to write a `schema.sql` file. To populate the DB with things, add the following:
 ```SQL
@@ -55,6 +57,7 @@ We use this extension to create UUIDs in Postgres.
 ```
 psql cruddur < db/schema.sql -h localhost -U postgres
 ```
+![Dump schema](assets/postgres3.png)
 
 - Add the the environment variables for our local database:
 ```
@@ -83,6 +86,7 @@ psql $NO_DB_CONNECTION_URL -c "DROP database cruddur;"
 ```
 chmod u+x bin/db-drop
 ```
+![DB drop](assets/dbdrop.png)
 
 b. Script to create database:
 - Create a file `db-create` in the `backend-flask/bin` directory and add the following:
@@ -96,6 +100,7 @@ psql $NO_DB_CONNECTION_URL -c "CREATE database cruddur;"
 ```
 chmod u+x bin/db-create
 ```
+![DB create](assets/dbcreate.png)
 
 c. Script to load database schema:
 - Create a file `db-load-schema` in the `backend-flask/bin` directory and add the following:
@@ -122,6 +127,8 @@ psql $CON_URL cruddur < $schema_path
 ```
 chmod u+x bin/db-load-schema
 ```
+![dbload scheme](assets/dbschemaload1.png)
+
 
 d. Creating Tables
 To create tables add the following in our `schema.sql` file:
@@ -151,7 +158,9 @@ CREATE TABLE public.activities (
 );
 ```
 
-- To run/implement this, we need to our our `db-schema-load` script
+- To run/implement this, we need to our our `db-seed` script
+
+
 
 e. Script to connect to our database
 - Create a file `db-connect` in the `backend-flask/bin` directory and add the following:
@@ -172,6 +181,8 @@ psql $URL
 ```
 chmod u+x bin/db-connect
 ```
+
+![db connect](assets/dbconnect.png)
 
 f.  Script to add data into out table via a schema/SQL file
 - Create a file `db-seed` in the `backend-flask/bin` directory and add the following:
@@ -195,6 +206,7 @@ psql $CONNECTION_URL cruddur < $seed_path
 ```
 chmod u+x bin/db-seed
 ```
+
 - Also create `seeq.sql` file in our `db` directory containing the following:
 ```SQL
 -- this file was manually created
@@ -212,6 +224,7 @@ VALUES
   )
 
 ```
+![db create table](assets/dbseed.png)
 
 g. Script to see how many connection we are using
 - Create a file `db-sessions` in the `backend-flask/bin` directory and add the following:
@@ -244,7 +257,9 @@ from pg_stat_activity;"
 chmod u+x bin/db-sessions
 ```
 
-h. Script to run the nunch of bash scripts created
+![db-session](assets/dbsession.png)
+
+h. Script to run the bunch of bash scripts created
 - Create a file `db-setyp` in the `backend-flask/bin` directory and add the following:
 ```bash
 #! /usr/bin/bash
@@ -267,6 +282,8 @@ source "$bin_path/db-seed"
 ```
 chmod u+x bin/db-setup
 ```
+
+![db scripts](assets/dbsetup.png)
 
 ### Install Postgres driver in backend application
 
@@ -361,6 +378,8 @@ class HomeActivities:
 
 - Run the application by using the `docker compose up` command and we get the following output
 
+![Postgres seed](assets/rdsoutput.png)
+
 ### Connect Gitpod to RDS instance
 
 - To connect to our RDS DB, run the following command:
@@ -382,6 +401,8 @@ To export the IP address automatically, add the following to your `.gitpod.yml` 
 ```      
 
 - Edit the inbound security group for Postgres so that we can whitelist the Gitpod IP
+
+![RDS SG](assets/rdssg.png)
 
 - Now try to connect to the RDS instance
 
@@ -411,6 +432,8 @@ c. Update the permisions by using:
 ```
 chmod u+x ./bin/rds-update-sg-rule
 ```
+![SG Bash script](assets/sgbash.png)
+![SG Bash](assets/rdsgitpodconnection.png)
 
 ### Create AWS Cognito Lambda trigger to insert user data into database
 
@@ -505,8 +528,11 @@ d. Choose our newly created policy and attach it to our role.
 
 - Now run the application using the `docker compose up` command and then sign up a new user to view the results
 
+![RDS new users](assets/rds-newuser.png)
 
 ### Create new activities with a database insert
+
+- To prevent SQL injection in our Lambda code, we do the following changes. You can view those changes in the [aws/lambdas/cruddur-post-confimation.py](aws/lambdas/cruddur-post-confimation.py) file.
 
 - First we will modifiy our `db.py` to create a database object. Do the following modifications:
 ```py
@@ -770,11 +796,13 @@ WHERE
   activities.uuid = %(uuid)s
 ```
 
-- To prevent SQL injection in our Lambda code, we do the following changes. You can view those changes in the [aws/lambdas/cruddur-post-confimation.py](aws/lambdas/cruddur-post-confimation.py) file.
+![user activities](assets/rds-useractivities.png)
 
 ### `*NOTE*`
 
 After testing this code, I was getting the NotNullViolation error. I did some research and found that in `app.py` under the `/api/activities` route of ` data_activities()` function I need to change the value of the `user_handle` feed to the actual username of the user I was using.
 
-But I found another solution on the Discord forums (by @anle4s) that avoided this harcoding and ensures that we can create activties without hardcoding the value
+I also found another solution on the Discord forums (by @anle4s) that avoided this harcoding and ensures that we can create activties without hardcoding the value
 of user handle.
+
+![Discord forum](assets/rds-notnullviolation.png)
