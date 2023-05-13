@@ -1,7 +1,7 @@
 import './MessageForm.css';
 import React from "react";
 import process from 'process';
-import { useParams } from 'react-router-dom';
+import { json, useParams } from 'react-router-dom';
 
 export default function ActivityForm(props) {
   const [count, setCount] = React.useState(0);
@@ -25,6 +25,7 @@ export default function ActivityForm(props) {
       } else {
         json.message_group_uuid = params.message_group_uuid
       }
+
       const res = await fetch(backend_url, {
         method: "POST",
         headers: {
@@ -36,7 +37,13 @@ export default function ActivityForm(props) {
       });
       let data = await res.json();
       if (res.status === 200) {
-        props.setMessages(current => [...current,data]);
+        console.log('data:',data)
+        if (data.message_group_uuid) {
+          console.log('redirect to message group')
+          window.location.href = `/messages/${data.message_group_uuid}`
+        } else {
+          props.setMessages(current => [...current,data]);
+        }
       } else {
         console.log(res)
       }
