@@ -15,6 +15,7 @@ COPY . .
 
 # Setting the environment variable
 ENV FLASK_ENV=development
+ENV PYTHONUNBUFFERED=1
 
 #Exposing port 4567 in the container for our flask application
 EXPOSE ${PORT}
