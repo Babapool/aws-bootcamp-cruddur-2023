@@ -103,6 +103,8 @@ print(response)
 chmod u+x bin/ddb/schema-load
 ```
 
+![ddb-schema-load](/journal/assets/ddb-schema-load.png)
+
 b. list-tables (To list the tables created)
 - Add the following code to the `ddb/list-tables` file:
 ```bash
@@ -124,6 +126,7 @@ aws dynamodb list-tables $ENDPOINT_URL \
 ```bash
 chmod u+x bin/ddb/list-tables
 ```
+![ddb-list-tables](/journal/assets/ddb-list-tables.png)
 
 c. drop (To drop any created table)
 - Add the following code to the `ddb/drop` file:
@@ -154,6 +157,7 @@ aws dynamodb delete-table $ENDPOINT_URL \
 ```
 chmod u+x bin/ddb/drop
 ```
+![ddb-drop-table](/journal/assets/ddb-drop-table.png)
 
 d. seed (To seed data into the table)
 - Add the following code to the `ddb/seed` file. You can see the contents of the `ddb/seed` file form [here](../backend-flask/bin/db/seed).
@@ -169,6 +173,7 @@ d. seed (To seed data into the table)
 ```bash
 chmod u+x ./bin/ddb/seed
 ```
+![ddb-seed](/journal/assets/ddb-seed.png)
 
 e. scan (To scan the table rows)
 - Add the following code to the `ddb/scan` file:
@@ -195,139 +200,27 @@ for item in items:
 ```
 chmod u+x bin/ddb/scan
 ```
+![ddb-scan](/journal/assets/ddb-scan.png)
 
 ### Implement Pattern Scripts for Read and List Conversations
 
 We will create pattern scripts which will help us to read and list the conversations we created. We will intialize a `bin/ddb/patterns` directory to store these
 scripts.
 
-a. List Conversations (Help us see how the consume capacity as well)
-- Add the following lines of code to the `bin/ddb/patterns/get-conversation` file:
-```py
-#!/usr/bin/env python3
+- Followed all the steps in the video to implement all the access patterns and DynamoDB streams
 
-import boto3
-import sys
-import json
-import datetime
+#### Access Pattern A
+![pattern A](/journal/assets/dynamodb-access-pattern-a.png)
 
-attrs = {
-  'endpoint_url': 'http://localhost:8000'
-}
+#### Access Pattern B
+![pattern B](/journal/assets/dynamodb-access-pattern-b.png)
 
-if len(sys.argv) == 2:
-  if "prod" in sys.argv[1]:
-    attrs = {}
+#### Access Pattern C
+![pattern C](/journal/assets/dynamodb-access-pattern-c.png)
 
-dynamodb = boto3.client('dynamodb',**attrs)
-table_name = 'cruddur-messages'
+#### Access Pattern D
+![pattern d.i](/journal/assets/dynamodb-access-pattern-di.png)
+![patternn d.ii](/journal/assets/dynamodb-access-pattern-dii.png)
 
-message_group_uuid = "5ae290ed-55d1-47a0-bc6d-fe2bc2700399"
-
-# define the query parameters
-current_year = datetime.datetime.now().year
-query_params = {
-  'TableName': table_name,
-  'ScanIndexForward': False,
-  'Limit': 20,
-  'ReturnConsumedCapacity': 'TOTAL',
-  'KeyConditionExpression': 'pk = :pk AND begins_with(sk,:year)',
-  #'KeyConditionExpression': 'pk = :pk AND sk BETWEEN :start_date AND :end_date',
-  'ExpressionAttributeValues': {
-    ':year': {'S': '2023'},
-    #":start_date": { "S": "2023-03-01T00:00:00.000000+00:00" },
-    #":end_date": { "S": "2023-03-19T23:59:59.999999+00:00" },
-    ':pk': {'S': f"MSG#{message_group_uuid}"}
-  }
-}
-
-
-# query the table
-response = dynamodb.query(**query_params)
-
-# print the items returned by the query
-print(json.dumps(response, sort_keys=True, indent=2))
-
-# print the consumed capacity
-print(json.dumps(response['ConsumedCapacity'], sort_keys=True, indent=2))
-
-items = response['Items']
-items.reverse()
-
-for item in items:
-  sender_handle = item['user_handle']['S']
-  message       = item['message']['S']
-  timestamp     = item['sk']['S']
-  dt_object = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f%z')
-  formatted_datetime = dt_object.strftime('%Y-%m-%d %I:%M %p')
-  print(f'{sender_handle: <12}{formatted_datetime: <22}{message[:40]}...')
-```
-- Add the following permissions:
-```bash
-chmod u+x ./bin/ddb/patterns/get-conversation
-```
-
-b. List Conversions
-- Add the following lines of code to the `bin/ddb/patterns/list-conversations` file:
-```py
-#!/usr/bin/env python3
-
-import boto3
-import sys
-import json
-import os
-
-current_path = os.path.dirname(os.path.abspath(__file__))
-parent_path = os.path.abspath(os.path.join(current_path, '..', '..', '..'))
-sys.path.append(parent_path)
-from lib.db import db
-
-attrs = {
-  'endpoint_url': 'http://localhost:8000'
-}
-
-if len(sys.argv) == 2:
-  if "prod" in sys.argv[1]:
-    attrs = {}
-
-dynamodb = boto3.client('dynamodb',**attrs)
-table_name = 'cruddur-messages'
-
-def get_my_user_uuid():
-  sql = """
-    SELECT 
-      users.uuid
-    FROM users
-    WHERE
-      users.handle =%(handle)s
-  """
-  uuid = db.query_value(sql,{
-    'handle':  'andrewbrown'
-  })
-  return uuid
-
-my_user_uuid = get_my_user_uuid()
-print(f"my-uuid: {my_user_uuid}")
-
-# define the query parameters
-query_params = {
-  'TableName': table_name,
-  'KeyConditionExpression': 'pk = :pk',
-  'ExpressionAttributeValues': {
-    ':pk': {'S': f"GRP#{my_user_uuid}"}
-  },
-  'ReturnConsumedCapacity': 'TOTAL'
-}
-
-# query the table
-response = dynamodb.query(**query_params)
-
-# print the items returned by the query
-print(json.dumps(response, sort_keys=True, indent=2))
-```
-- Also update our [db.py](../backend-flask/lib/db.py) file.
-
-- - Add the following permissions:
-```bash
-chmod u+x ./bin/ddb/patterns/list-conversations
-```
+#### Access Pattern E
+![pattern E](/journal/assets/dynamodb-access-pattern-E.png)
