@@ -1,5 +1,5 @@
 # We want to the use the 3.10-slim-buster version of python as the base of image of pur container
-FROM python:3.10-slim-buster
+FROM 030610311417.dkr.ecr.us-east-1.amazonaws.com/cruddur-python:3.10-slim-buster
 
 # In our container a /backend-flask will be created and will set as the present working directory
 WORKDIR /backend-flask
